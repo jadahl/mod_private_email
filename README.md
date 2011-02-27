@@ -29,13 +29,13 @@ Configuration
 Here follows a sample configuration which lets any user on "example.net" store
 configure their privately stored Email addresses.
 
-{access, mod_private_email, [{allow, {server, "example.net"}}, {deny, all}]}.
-
-{module, [
-    ...
-    {mod_disco, []}, % Required by mod_adhoc
-    {mod_adhoc, []}, % Required by mod_private_email
-    {mod_private_email, []},
-    ...
-]}
+    {access, mod_private_email, [{allow, {server, "example.net"}}, {deny, all}]}.
+    
+    {module, [
+        ...
+        {mod_disco, []}, % Required by mod_adhoc
+        {mod_adhoc, []}, % Required by mod_private_email
+        {mod_private_email, []},
+        ...
+    ]}
 
