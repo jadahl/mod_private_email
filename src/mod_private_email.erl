@@ -71,7 +71,12 @@ start(Host, _Opts) ->
 
     ok.
 
-stop(_Host) ->
+stop(Host) ->
+    ejabberd_hooks:delete(adhoc_local_commands, Host, ?MODULE,
+                          private_email_commands, 50),
+    ejabberd_hooks:delete(adhoc_local_items, Host,
+                          ?MODULE, private_email_items, 50),
+
     ok.
 
 %
