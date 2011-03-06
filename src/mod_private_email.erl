@@ -36,6 +36,10 @@
         get_email/1,
         delete_email/1,
 
+        % User events
+        user_removed/2,
+        user_registered/2,
+
         % Ad-hoc commands
         private_email_items/4,
         private_email_commands/4
@@ -64,6 +68,11 @@ start(Host, _Opts) ->
 
     update_table(),
 
+    % user event hooks
+    ejabberd_hooks:add(remove_user, Host, ?MODULE, user_removed, 50),
+    ejabberd_hooks:add(register_user, Host, ?MODULE, user_registered, 50),
+
+    % ad-hoc hooks
     ejabberd_hooks:add(adhoc_local_items, Host,
                        ?MODULE, private_email_items, 50),
     ejabberd_hooks:add(adhoc_local_commands, Host,
@@ -72,10 +81,15 @@ start(Host, _Opts) ->
     ok.
 
 stop(Host) ->
+    % ad-hoc hooks
     ejabberd_hooks:delete(adhoc_local_commands, Host, ?MODULE,
                           private_email_commands, 50),
     ejabberd_hooks:delete(adhoc_local_items, Host,
                           ?MODULE, private_email_items, 50),
+
+    % user event hooks
+    ejabberd_hooks:delete(remove_user, Host, ?MODULE, user_removed, 50),
+    ejabberd_hooks:delete(register_user, Host, ?MODULE, user_registered, 50),
 
     ok.
 
@@ -101,16 +115,22 @@ update_table() ->
 
 -spec set_email(#jid{}, string()) -> ok | {error, atom()}.
 set_email(JID, Email) ->
-    #jid{luser = User, lserver = Server} = JID,
-    F = fun() ->
-        mnesia:write(#private_email{user = {User, Server}, email = Email})
-    end,
-    case mnesia:transaction(F) of
-        {atomic, _} -> ok;
-        {aborted, _Reason} ->
-            ?ERROR_MSG("Couldnt set private Email '~p' for '~p': ~p",
-                       [Email, JID, _Reason]),
-            {error, aborted}
+    case re:run(Email, "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+") of
+        {match, _} ->
+            #jid{luser = User, lserver = Server} = JID,
+            F = fun() ->
+                mnesia:write(#private_email{user = {User, Server},
+                                            email = Email})
+            end,
+            case mnesia:transaction(F) of
+                {atomic, _} -> ok;
+                {aborted, _Reason} ->
+                    ?ERROR_MSG("Couldnt set private Email '~p' for '~p': ~p",
+                               [Email, JID, _Reason]),
+                    {error, aborted}
+            end;
+        _ ->
+            {error, invalid_email}
     end.
 
 -spec get_email(#jid{}) -> string() | {error, atom()}.
@@ -133,6 +153,18 @@ delete_email(JID) ->
         mnesia:delete({private_email, {User, Server}})
     end,
     mnesia:transaction(F).
+
+%
+% User events
+%
+
+user_removed(User, Server) ->
+    JID = jlib:make_jid(User, Server, ""),
+    delete_email(JID).
+
+user_registered(User, Server) ->
+    % Clear previous entry, if one exists
+    user_removed(User, Server).
 
 %
 % Ad-Hoc commands
