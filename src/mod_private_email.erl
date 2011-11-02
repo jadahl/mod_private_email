@@ -42,7 +42,10 @@
 
         % Ad-hoc commands
         private_email_items/4,
-        private_email_commands/4
+        private_email_commands/4,
+
+        % mod_restful_register events
+        mod_restful_register_registered/4
     ]).
 
 -behaviour(gen_mod).
@@ -77,6 +80,10 @@ start(Host, _Opts) ->
                        ?MODULE, private_email_items, 50),
     ejabberd_hooks:add(adhoc_local_commands, Host,
                        ?MODULE, private_email_commands, 50),
+
+    % mod_restful_register hooks
+    ejabberd_hooks:add(mod_restful_register_registered, Host,
+                       ?MODULE, mod_restful_register_registered, 50),
 
     ok.
 
@@ -298,5 +305,21 @@ private_email_command(From, #adhoc_request{node = Node,
                 ?PRIVATE_EMAIL("clear") -> command_clear(From, Request);
                 _                       -> {error, ?ERR_BAD_REQUEST}
             end
+    end.
+
+%
+% mod_restful_register
+%
+
+mod_restful_register_registered(AccIn, Username, Host, Request) ->
+    case gen_restful_api:params([email], Request) of
+        [Email] ->
+            JID = jlib:make_jid(Username, Host, ""),
+            case set_email(JID, Email) of
+                ok               -> AccIn;
+                {error, _Reason} -> [{private_email, not_set} | AccIn]
+            end;
+        _ ->
+            [{private_email, not_set} | AccIn]
     end.
 

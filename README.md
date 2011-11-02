@@ -39,3 +39,15 @@ configure their privately stored Email addresses.
         ...
     ]}
 
+REST API
+-----------
+
+mod_private_email makes use of the `mod_restful_register_registered` hook in
+[mod_restful](http://github.com/jadahl/mod_restful) to automatically add
+private email entries associated with the newly registered user.
+
+A parameter `email` is to the `mod_restful_register` `register` request. If
+not added key, value-pair `{private_email, not_set}` pair is returned. If
+successful no extra return value is added.
+
+In JSON a key, value pair `{key, value}` would look like `{"key": "value"}`.
