@@ -45,14 +45,20 @@
         private_email_commands/4,
 
         % mod_restful_register events
-        mod_restful_register_registered/4
+        mod_restful_register_registered/4,
+
+        % mod_restful API
+        process_rest/1
     ]).
 
 -behaviour(gen_mod).
+-behaviour(gen_restful_api).
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
 -include("adhoc.hrl").
+
+-include_lib("mod_restful/include/mod_restful.hrl").
 
 -record(private_email, {
         user :: {string(), string()},
@@ -88,6 +94,10 @@ start(Host, _Opts) ->
     ok.
 
 stop(Host) ->
+    % mod_restful_register hooks
+    ejabberd_hooks:delete(mod_restful_register_registered, Host,
+                          ?MODULE, mod_restful_register_registered, 50),
+
     % ad-hoc hooks
     ejabberd_hooks:delete(adhoc_local_commands, Host, ?MODULE,
                           private_email_commands, 50),
@@ -321,5 +331,63 @@ mod_restful_register_registered(AccIn, Username, Host, Request) ->
             end;
         _ ->
             [{private_email, not_set} | AccIn]
+    end.
+
+%
+% mod_restful API
+%
+
+process_rest(Request) ->
+    case gen_restful_api:authorize_key_request(Request) of
+        allow ->
+            process(Request);
+        _ ->
+            {error, not_allowed}
+    end.
+
+process(#rest_req{path = [_, "change"],
+                  http_request = #request{method = 'POST'}} = Request) ->
+    process_change(Request);
+process(#rest_req{path = [_, "get"],
+                  http_request = #request{method = 'GET'}} = Request) ->
+    process_get(Request);
+process(_) ->
+    {error, not_found}.
+
+if_allowed(Username, Host, Password, Fun) ->
+    case gen_restful_api:host_allowed(Host) andalso
+         ejabberd_auth:check_password(Username, Host, Password) of
+        true ->
+            JID = jlib:make_jid(Username, Host, ""),
+            Fun(JID);
+        _  ->
+            {error, not_allowed}
+    end.
+
+process_change(Request) ->
+    case gen_restful_api:params([username, host, password, new_email],
+                                Request) of
+        [Username, Host, Password, Email] ->
+            Fun = fun(JID) ->
+                      ok = set_email(JID, Email),
+                      {simple, ok}
+                  end,
+            if_allowed(Username, Host, Password, Fun);
+        _ ->
+            {error, bad_request2}
+    end.
+
+process_get(Request) ->
+    case gen_restful_api:params([username, host, password], Request) of
+        [Username, Host, Password] ->
+            Fun = fun(JID) ->
+                      case get_email(JID) of
+                          R when is_list(R) or is_binary(R) -> {simple, R};
+                          {error, _} = Error                -> Error
+                      end
+                  end,
+            if_allowed(Username, Host, Password, Fun);
+        _ ->
+            {error, bad_request1}
     end.
 
