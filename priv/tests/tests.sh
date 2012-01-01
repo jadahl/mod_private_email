@@ -20,7 +20,7 @@ expect_change_email()
 
 expect_email()
 {
-    expect "\"$1\"" get_email "$USERNAME" "$PASSWORD"
+    expect "\"$1\"" get_email "$USERNAME"
 }
 
 expect_change_email "$EMAIL1"

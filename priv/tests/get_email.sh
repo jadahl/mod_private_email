@@ -3,9 +3,8 @@
 get_email()
 {
     USERNAME=$1
-    PASSWORD=$2
 
-    get private_email/get "username=$USERNAME&password=$PASSWORD"
+    get private_email/get "username=$USERNAME"
 }
 
 [ $# = 2 ] && {

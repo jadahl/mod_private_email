@@ -378,15 +378,16 @@ process_change(Request) ->
     end.
 
 process_get(Request) ->
-    case gen_restful_api:params([username, host, password], Request) of
-        [Username, Host, Password] ->
-            Fun = fun(JID) ->
-                      case get_email(JID) of
-                          R when is_list(R) or is_binary(R) -> {simple, R};
-                          {error, _} = Error                -> Error
-                      end
-                  end,
-            if_allowed(Username, Host, Password, Fun);
+    case gen_restful_api:params([username, host], Request) of
+        [Username, Host] ->
+            case gen_restful_api:host_allowed(Host) of
+                true ->
+                    JID = jlib:make_jid(Username, Host, ""),
+                    case get_email(JID) of
+                        R when is_list(R) or is_binary(R) -> {simple, R};
+                        {error, _} = Error                -> Error
+                    end
+            end;
         _ ->
             {error, bad_request1}
     end.
