@@ -1,16 +1,17 @@
-EJABBERD_PATH=../ejabberd/
-EJABBERD_SRC_PATH=$(EJABBERD_PATH)src
+PREFIX=/usr
 
 BEAMS=ebin/mod_private_email.beam
+
+INCLUDES=-I ./include -I $(PREFIX)/lib -pa $(PREFIX)/lib/ejabberd/ebin
 
 all: $(BEAMS)
 
 ebin/%.beam: src/%.erl
 	@mkdir -p ebin
-	erlc -pa ./ebin -I ./include -I $(EJABBERD_SRC_PATH) -pa $(EJABBERD_SRC_PATH) -o ./ebin -I.. $<
+	erlc -pa ./ebin $(INCLUDES) -o ./ebin $<
 
 install: all
-	cp ebin/*.beam $(EJABBERD_SRC_PATH)
+	cp ebin/*.beam $(PREFIX)/lib/ejabberd/ebin
 
 clean:
 	rm -f ebin/*.beam test_ebin/*.beam
