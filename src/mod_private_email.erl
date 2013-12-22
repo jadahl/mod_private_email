@@ -5,7 +5,7 @@
 %%% Created : 20 Feb 2011 by Jonas Ådahl <jadahl@gmail.com>
 %%%
 %%%
-%%% Copyright (C) 2011   Jonas Ådahl
+%%% Copyright (C) 2011-2013   Jonas Ådahl
 %%%
 %%% This program is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU Affero General Public License as
@@ -54,11 +54,11 @@
 -behaviour(gen_mod).
 -behaviour(gen_restful_api).
 
--include("ejabberd.hrl").
--include("jlib.hrl").
--include("adhoc.hrl").
+-include_lib("ejabberd/include/ejabberd.hrl").
+-include_lib("ejabberd/include/jlib.hrl").
+-include_lib("ejabberd/include/adhoc.hrl").
 
--include_lib("mod_restful/include/mod_restful.hrl").
+-include_lib("ejabberd/include/mod_restful.hrl").
 
 -record(private_email, {
         user :: {string(), string()},
@@ -122,7 +122,7 @@ update_table() ->
         Fields ->
             ok;
         _ ->
-            ?INFO_MSG("Recreating private_email table",[]),
+            error_logger:info_msg("Recreating private_email table"),
             mnesia:transform_table(private_email, ignore, Fields)
     end.
 
@@ -131,7 +131,7 @@ update_table() ->
 %
 
 -spec set_email(#jid{}, string()) -> ok | {error, atom()}.
-set_email(JID, Email) ->
+set_email(#jid{} = JID, Email) ->
     case re:run(Email, "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+") of
         {match, _} ->
             #jid{luser = User, lserver = Server} = JID,
@@ -142,8 +142,8 @@ set_email(JID, Email) ->
             case mnesia:transaction(F) of
                 {atomic, _} -> ok;
                 {aborted, _Reason} ->
-                    ?ERROR_MSG("Couldnt set private Email '~p' for '~p': ~p",
-                               [Email, JID, _Reason]),
+                    error_logger:error_msg("Couldnt set private Email '~p' for '~p': ~p",
+                                           [Email, JID, _Reason]),
                     {error, aborted}
             end;
         _ ->
@@ -155,12 +155,12 @@ get_email(JID) ->
     try
         #jid{luser = User, lserver = Server} = JID,
         case mnesia:dirty_read(private_email, {User, Server}) of
-            [#private_email{email = Email}] -> Email;
-            _                               -> ""
+            [#private_email{email = Email}] -> io:format("got email ~p from ~p~n", [Email, JID]),Email;
+            _                               -> <<"">>
         end
     catch
         {'EXIT', _Reason} ->
-            ?ERROR_MSG("Error when retrieving Email for '~p'", [JID]),
+            error_logger:error_msg("Error when retrieving Email for '~p'", [JID]),
             {error, mnesia}
     end.
 
@@ -237,7 +237,7 @@ private_email_commands(Acc, From, #jid{lserver = LServer} = _To,
 
 generate_form(Lang, From) ->
     OldEmail = get_email(From),
-    ?INFO_MSG("old email ~p", [OldEmail]),
+    error_logger:info_msg("old email ~p", [OldEmail]),
     {xmlelement, "x",
      [{"xmlns", ?NS_XDATA},
       {"type", "form"}],
@@ -259,7 +259,7 @@ handle_set_fields(Fields, From, #adhoc_request{lang = Lang} = Request) ->
                 ok ->
                     [{"info", ?T(Lang, "Email has been set.")}];
                 {error, _Reason} ->
-                    ?ERROR_MSG("Could not set private email '~p'", [Email]),
+                    error_logger:error_message("Could not set private email '~p'", [Email]),
                     [{"error", ?T(Lang, "Failed to set Email.")}]
             end,
 
@@ -345,10 +345,10 @@ process_rest(Request) ->
             {error, not_allowed}
     end.
 
-process(#rest_req{path = [_, "change"],
+process(#rest_req{path = [_, <<"change">>],
                   http_request = #request{method = 'POST'}} = Request) ->
     process_change(Request);
-process(#rest_req{path = [_, "get"],
+process(#rest_req{path = [_, <<"get">>],
                   http_request = #request{method = 'GET'}} = Request) ->
     process_get(Request);
 process(_) ->
@@ -358,7 +358,7 @@ if_allowed(Username, Host, Password, Fun) ->
     case gen_restful_api:host_allowed(Host) andalso
          ejabberd_auth:check_password(Username, Host, Password) of
         true ->
-            JID = jlib:make_jid(Username, Host, ""),
+            JID = jlib:make_jid(Username, Host, <<"">>),
             Fun(JID);
         _  ->
             {error, not_allowed}
@@ -382,7 +382,7 @@ process_get(Request) ->
         [Username, Host] ->
             case gen_restful_api:host_allowed(Host) of
                 true ->
-                    JID = jlib:make_jid(Username, Host, ""),
+                    JID = jlib:make_jid(Username, Host, <<"">>),
                     case get_email(JID) of
                         R when is_list(R) or is_binary(R) -> {simple, R};
                         {error, _} = Error                -> Error
