@@ -176,7 +176,7 @@ delete_email(JID) ->
 %
 
 user_removed(User, Server) ->
-    JID = jlib:make_jid(User, Server, ""),
+    JID = jlib:make_jid(User, Server, <<"">>),
     delete_email(JID).
 
 user_registered(User, Server) ->
@@ -324,7 +324,7 @@ private_email_command(From, #adhoc_request{node = Node,
 mod_restful_register_registered(AccIn, Username, Host, Request) ->
     case gen_restful_api:params([email], Request) of
         [Email] ->
-            JID = jlib:make_jid(Username, Host, ""),
+            JID = jlib:make_jid(Username, Host, <<"">>),
             case set_email(JID, Email) of
                 ok               -> AccIn;
                 {error, _Reason} -> [{private_email, not_set} | AccIn]
